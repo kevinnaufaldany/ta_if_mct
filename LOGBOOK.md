@@ -4,7 +4,7 @@
 
 ### 2024-07
 - Research bagaimana si cara memisahkan ukuran bijih dalam satuan (mesh) menggunakan shaking table
-- Mempelajari Instance Segmentation untuk melabeling bijih timah
+- Mempelajari Instance Segmentation untuk memisahkan kandungan sn dengan mineral lain pada bijih timah
 
 
 ## June
