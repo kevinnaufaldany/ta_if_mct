@@ -1,21 +1,30 @@
 # Research Logbook
 
-## August
-
-### 2024-08-30
-- Developing the new feature
-- Fixing the bug
-    ```
-    def test():
-        pass
-    ```
-
 ## July
 
-### 2024-07-15
-- Researching the new feature
-- Updating the documentation
-    ```
-    def test():
-        pass
+### 2024-07
+- Research bagaimana si cara memisahkan ukuran bijih dalam satuan (mesh) menggunakan shaking table
+- Mempelajari Instance Segmentation untuk melabeling bijih timah
+
+
+## June
+
+### 2025-06
+- Research jurnal-jurnal mengenai EfficientNet-B0 dan cara menentukan kualitas bijih timah berdasarkan visual
+- Mencoba program menggunakan EfficientNet-B0 
+- Discuss mengenai judul saya ke seorang penambang dan rekan2 di perusahaan kp
+
+    ```python
+    model = tf.keras.Sequential([
+            EfficientNetB0(weights='imagenet', # imagenet
+                        include_top=False,
+                        pooling='avg'), # max
+            Dense(1024, activation='relu'),
+            Dropout(0.2), 
+            Dense(5, activation='softmax')
+        ])
+        
+    model.layers[0].trainable = False
+
+    model.summary()
     ```
