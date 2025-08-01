@@ -1,8 +1,17 @@
 # Research Logbook
 
+## August
+
+### 2025-01
+- output dari XRF itu adalah prediksi kadar dari hasil tembakan XRF yang terintegrasi ke layar XRF dan memprediksi semua mineral yang ada dalam bentuk persentase
+
 ## July
 
-### 2024-07
+### 2025-31
+- Diskusi dengan karyawan mengenai alat saat ini yang di gunakan untuk menentukan kadar timah yang hampir sejenis dengan penelitian saya yang bernama XRF 
+
+
+### 2025-07
 - Research bagaimana si cara memisahkan ukuran bijih dalam satuan (mesh) menggunakan shaking table
 - Mempelajari Instance Segmentation untuk memisahkan kandungan sn dengan mineral lain pada bijih timah
 
