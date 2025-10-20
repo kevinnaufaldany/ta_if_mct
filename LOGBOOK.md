@@ -1,20 +1,29 @@
 # Research Logbook
 
+## October
 
+### 2025=15
+- Bimbingan with LIA revisi habis2an BAB1 dan lanjut ke BAB2
+
+### 2025-13
+- Bimbingan with MCT konfirmasi our code dan sudah di acc, waktunya NULIS
+
+### 2025-6
+- Try buat code menggunakan data sedikit yakni 11 dan menggunakan Cross Validation dan berhasil di fold 1 yakni: 
+![Benchmark Awal](/figure/fold1_curves.png) 
 
 ## September
 
 ### 2025-30 
-- Diskusi mengenai Train yang selalu runtime eror, cross validation, Evaluasi model segmentasi, dengan solusi learn & try Runpod dan di invite pada platform Runpod teamnya pak MCT dan sudah learn dengan ketua grub D 
-- Try buat code menggunakan data sedikit yakni 11 dan menggunakan Cross Validation dan berhasil di fold 1 yakni: 
-![Benchmark Awal](/figure/fold1_curves.png)
+- Menggunakan saran yang di berikan yakni menggunakan SAM, dan ada salah satu source dari github [labelme-with-segment-anything](https://github.com/originlake/labelme-with-segment-anything) untuk anotasi menggunakan Labelme dengan SAM yang dapat secara otomatis menyesuaikan objek
 
 ### 2025-15 
 - Diskusi mengenai hasil segmentasi sedikit data untuk dummy yakni baru 10 images dan mendapatkan informasi mengenai SAM (Segment Anything Model) yakni model kecerdasan buatan yang dikembangkan Oleh Meta yang dirancang untuk segmentasi objek dalam gambar dan video.
 - Menggunakan referensi yang saya fork dari [Wada_Labelme_Image_Polygonal](https://github.com/wkentaro/labelme) untuk anotasi poligonal pada citra, yang memudahkan proses pelabelan data untuk segmentasi gambar.
 
-### 2025-12 LIA
-- Diskusi mengenai mineral cassiterite/ bijih timah dan konsultasi isi Bab 1 penulisan
+### 2025-12 
+- Diskusi mengenai mineral cassiterite/ bijih timah dan konsultasi isi Bab 1 penulisan with LIA
+- Diskusi mengenai Train yang selalu runtime eror, cross validation, Evaluasi model segmentasi, dengan solusi learn & try Runpod dan di invite pada platform Runpod teamnya pak MCT dan sudah learn dengan ketua grub D 
 
 ### 2025-1 
 - Diskusi mengenai hasil data yang ada dan model yakni Mask R-CNN
@@ -46,7 +55,7 @@
 - Diskusi dengan anak magang dari eksplorasi yang memahami alur dan contoh dari data citra pada laboratorium mengenai kira2 akan apa output dari penelitian saya ini
 
 ### 2025-03 
-- Diskusi dengan kepala divisi mengenai penelitian saya dan mendapat kan informasi mengenai data pada citra labolatorium
+- Diskusi dengan kepala divisi mengenai penelitian saya dan mendapat kan informasi mengenai data pada citra mikroskop labolatorium
 
 ### 2025-01 
 - output dari XRF itu adalah prediksi kadar dari hasil tembakan XRF yang terintegrasi ke layar XRF dan memprediksi semua mineral yang ada dalam bentuk persentase
