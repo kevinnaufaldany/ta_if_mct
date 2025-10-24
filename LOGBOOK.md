@@ -1,8 +1,26 @@
 # Research Logbook
 
 ## October
+### 2025-23
+- Bimbingan with MCT from Mail, konfirmasi BAB1 dan meminta review all, dan hasil review nya sebagai berikut:
+- A. Justifikasi Jumlah Dataset yang Digunakan
+    1. Pertanyaan untuk Kamu: Siapkan argumen yang kuat untuk mempertahankan mengapa 142 citra ini dianggap cukup untuk menghasilkan model yang robust.
+    2. Apakah ada teknik khusus yang Kamu gunakan, seperti data augmentation yang ekstensif, untuk mengatasi keterbatasan ini? Alasan "keterbatasan SDM" perlu diuraikan lebih dalam pada saat sidang nanti
 
-### 2025=15
+    - Jawaban : 142 citra dari 1053 citra, di karenakan dari data 1053 itu tidak semuanya citra yang mengandung kasiterit, lalu juga ada beberapa yang resolusinya jelek, || saya berani 142 cukup di karenakan saya sudah melakukan segmentasi datanya dari 142 citra itu dan mendapatkan lebih dari **7.664** objek kasiterit nya, yang dimana sudah lebih dari cukup, seperti pada penelitian yang dilakukan oleh B.A.P. Ferreira yang datasetnya **1.740** partikel kuarsa / objek, || augmentasi ga terlalu banyak hanya general saja, flip, crop, rotate, noise simple, tidak merubah2 kontras lebih lanjut ataupun perubahan warna2 yang kompleks untuk augmentasi, karena mineral cassiterite mirip2 dengan mineral lain, agar tidak menghilangkan detail dari mineral cassiterite 
+
+    - ![Benchmark Awal](/figure/count-cass.png) 
+
+- B. Penajaman Kontribusi pada Latar Belakang (Bagian 1.1):
+    1. Kamu sudah menyebutkan akan menerapkan amodal instance segmentation untuk mengatasi oklusi (butir mineral yang tumpang tindih). Ini adalah poin kebaruan yang sangat baik. Namun, alur penyampaiannya bisa sedikit dipertajam.
+    2. Coba tambahkan satu kalimat transisi sebelum memperkenalkan amodal instance segmentation untuk lebih menyoroti masalah oklusi sebagai tantangan utama.
+    3. Contohnya: "Meskipun Mask R-CNN andal, tantangan spesifik pada citra butir mineral adalah adanya tumpang tindih (oklusi) yang sering terjadi. Untuk mengatasi masalah inilah, penelitian ini mengusulkan penerapan teknik amodal instance segmentation..."
+
+
+### 2025-21
+- Bimbingan with LIA revisi tipis BAB1 and fix BAB1, dan BAB2 fokus di 2.1 Tinjauan pustaka
+
+### 2025-15
 - Bimbingan with LIA revisi habis2an BAB1 dan lanjut ke BAB2
 
 ### 2025-13
