@@ -1,13 +1,26 @@
 # Research Logbook
 
+## November
+### 2025-07
+- Bimbingan with LIA konsultasi mengenai akan ada perubahan variasi penelitian TA kevin dan harus konfirmasi kepada pak bos, jiakalau gas, lets go revisi 
+
+### 2025-04
+- Diskusi with LIA mengenai insyallah naik, dan alhamdulillah di acc pak bos, dan di minta untuk membuat berbagai pertanyaan yang dimana di coba anda seolah2 menjadi seorng penguji dan apa yang akan anda tanyakan kepada sang peneliti.
+
+### 2025-03
+- Bimbingan with MCT membahas mengenai Variasi lama, dan insyallah ganti
+
 ## October
+### 2025-30
+- Bimbingan with LIA membahas revisi bab 1 dan bab2 bab 3 tipis2 
+
 ### 2025-23
 - Bimbingan with MCT from Mail, konfirmasi BAB1 dan meminta review all, dan hasil review nya sebagai berikut:
 - A. Justifikasi Jumlah Dataset yang Digunakan
     1. Pertanyaan untuk Kamu: Siapkan argumen yang kuat untuk mempertahankan mengapa 142 citra ini dianggap cukup untuk menghasilkan model yang robust.
     2. Apakah ada teknik khusus yang Kamu gunakan, seperti data augmentation yang ekstensif, untuk mengatasi keterbatasan ini? Alasan "keterbatasan SDM" perlu diuraikan lebih dalam pada saat sidang nanti
 
-    - Jawaban : 142 citra dari 1053 citra, di karenakan dari data 1053 itu tidak semuanya citra yang mengandung kasiterit, lalu juga ada beberapa yang resolusinya jelek, || saya berani 142 cukup di karenakan saya sudah melakukan segmentasi datanya dari 142 citra itu dan mendapatkan lebih dari **7.664** objek kasiterit nya, yang dimana sudah lebih dari cukup, seperti pada penelitian yang dilakukan oleh B.A.P. Ferreira yang datasetnya **1.740** partikel kuarsa / objek, || augmentasi ga terlalu banyak hanya general saja, flip, crop, rotate, noise simple, tidak merubah2 kontras lebih lanjut ataupun perubahan warna2 yang kompleks untuk augmentasi, karena mineral cassiterite mirip2 dengan mineral lain, agar tidak menghilangkan detail dari mineral cassiterite 
+    - Jawaban : 142 citra dari 1053 citra, di karenakan dari data 1053 itu tidak semuanya citra yang mengandung kasiterit, lalu juga ada beberapa yang resolusinya jelek, || saya berani 142 cukup di karenakan saya sudah melakukan segmentasi datanya dari 142 citra itu dan mendapatkan lebih dari **7.664** objek kasiterit nya, yang dimana sudah lebih dari cukup, seperti pada penelitian yang dilakukan oleh B.A.P. Ferreira yang datasetnya **1.740** partikel kuarsa / objek, || augmentasi ga terlalu banyak hanya general saja, flip, rotate, noise simple, tidak merubah2 kontras lebih lanjut ataupun perubahan warna2 yang kompleks untuk augmentasi, karena mineral cassiterite mirip2 dengan mineral lain, agar tidak menghilangkan detail dari mineral cassiterite 
 
     - ![Benchmark Awal](/figure/count-cass.png) 
 
