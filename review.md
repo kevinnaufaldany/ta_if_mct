@@ -1,5 +1,6 @@
 # Review Perkembangan Penelitian Mask R-CNN Kevin
 - Variasi TA lama kevin
+
 ![Variasi Lama](/figure/VariasiLama.png)
 ## Eksperimen Arsitektur & Kendala pada Backbone
 Sebelumnya, saya mencoba beberapa `variasi arsitektur`, termasuk menambahkan komponen `ASN (Amodal Segmentation Network)` serta menggabungkan varian **FPN (Feature Pyramid Network)** dengan `Multipath FPN`. Namun, hasil dari kombinasi tersebut kurang memuaskan. MFPN yang saya coba sepertinya tidak berjalan optimal Hasilnya tidak memuaskan karena metrik evaluasi masih di angka `AP@0.5:0.95 = 0.000` stagnan, dan `integrasi ASN` juga **tidak memberikan pengaruh signifikan** seperti yang diharapkan.
