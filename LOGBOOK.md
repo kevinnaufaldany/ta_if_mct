@@ -1,5 +1,22 @@
 # Research Logbook
 
+
+## Januari
+### 2025-12
+- Bimbingan MCT terkait code dan hasil sementara code, code berhasil jalan tapi cukup berat, dan di saran kan untuk memecah gambar menjadi 4 bagian dalam 1 image, dan hasilnya sudah ada split.py yang saat ini saya try terpisah, untuk melakukan splitnya, yang dimana split hanya melakukan jikalau di suatu grid atau bagian yang hanya memiliki segmentasi, dan bagian atau grid yang tidak ada tidak akan termasuk.
+- Hasilnya hasil segmentasi bertambah menjadi **8492** yang dimana sebelumnya sebanyak **7.664**, cukup banyak bertambah sebanyak **828** objek yang di dapatkan dari hasil potongan2 gambar. yang dimana total tile nya itu sebanyak **1074** dengan masing2 **537** image dan .json
+    - ![Benchmark Awal](figure\counr-cass-split.png) 
+
+## Desember
+### 2025-5
+- Bimbingan LIA mengenai hasil poin revisi
+
+## November
+### 2025-25
+- Bimbingan LIA mengenai hasil poin revisi
+
+# After Sempro 21/09/2025
+
 ## November
 ### 2025-07
 - Bimbingan with LIA konsultasi mengenai akan ada perubahan variasi penelitian TA kevin dan harus konfirmasi kepada pak bos, jiakalau gas, lets go revisi 
