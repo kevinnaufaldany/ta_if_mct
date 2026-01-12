@@ -107,9 +107,11 @@ class CassiteriteDataset(Dataset):
         # Convert to numpy arrays
         if len(masks) == 0:
             # Jika tidak ada objek, buat dummy
-            masks = np.zeros((1, original_h, original_w), dtype=np.uint8)
-            boxes = np.array([[0, 0, 1, 1]], dtype=np.float32)
-            labels = np.array([0], dtype=np.int64)
+            # masks = np.zeros((1, original_h, original_w), dtype=np.uint8)
+            # boxes = np.array([[0, 0, 1, 1]], dtype=np.float32)
+            # labels = np.array([0], dtype=np.int64)
+            raise ValueError(f"No valid object found in {img_name}")
+
         else:
             masks = np.array(masks, dtype=np.uint8)
             boxes = np.array(boxes, dtype=np.float32)
@@ -168,15 +170,12 @@ def get_train_transform(target_size=(1080, 1920)):
     """
     return A.Compose([
         A.Resize(height=target_size[0], width=target_size[1]),
-        A.HorizontalFlip(p=0.5),
-        A.VerticalFlip(p=0.3),
-        A.Rotate(limit=15, p=0.5, border_mode=cv2.BORDER_CONSTANT),
-        # Noise ringan tanpa mengubah warna - using correct parameter
-        A.GaussNoise(p=0.3),  # Uses default var_limit
-        # Normalisasi TANPA menggunakan ImageNet mean/std
-        # Gunakan normalisasi sederhana 0-1
+        A.HorizontalFlip(p=0.4),
+        A.VerticalFlip(p=0.4),
+        A.Rotate(limit=(-15, 15), p=0.5, border_mode=cv2.BORDER_CONSTANT),
+        A.GaussNoise(var_limit=(5.0, 20.0), p=0.3), 
         A.Normalize(mean=(0.0, 0.0, 0.0), std=(1.0, 1.0, 1.0), max_pixel_value=255.0),
-        ToTensorV2(),
+        ToTensorV2(), # normaliasasi /255
     ], bbox_params=A.BboxParams(format='pascal_voc', label_fields=['labels']),
        additional_targets={'masks': 'masks'})
 
@@ -188,7 +187,7 @@ def get_val_transform(target_size=(1080, 1920)):
     return A.Compose([
         A.Resize(height=target_size[0], width=target_size[1]),
         A.Normalize(mean=(0.0, 0.0, 0.0), std=(1.0, 1.0, 1.0), max_pixel_value=255.0),
-        ToTensorV2(),
+        ToTensorV2(), # normaliasasi /255
     ], bbox_params=A.BboxParams(format='pascal_voc', label_fields=['labels']),
        additional_targets={'masks': 'masks'})
 

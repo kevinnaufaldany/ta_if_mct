@@ -27,8 +27,7 @@ from utils import (
 def visualize_predictions(model, dataset, device, save_dir, fold_idx, num_samples=5, 
                          confidence_threshold=0.5, seed=42):
     """
-    Visualize model predictions vs ground truth untuk validasi. 
-    Walau masih berantakan hasil visualisasinya
+    Visualize model predictions vs ground truth untuk validasi.
     """
     model.eval()
     
@@ -86,8 +85,8 @@ def visualize_predictions(model, dataset, device, save_dir, fold_idx, num_sample
             # Statistics
             total_pred = len(pred_boxes)
             avg_conf = pred_scores.mean() if len(pred_scores) > 0 else 0.0
-            fig.text(0.02, 0.5, f'Total: {total_pred}\nAvg Confidence: {avg_conf:.3f}', 
-                    ha='left', fontsize=12, fontweight='bold', color='red')
+            fig.text(0.02, 0.02, f'Total: {total_pred}\nAvg Confidence: {avg_conf:.3f}', 
+                    ha='left', va='bottom', fontsize=12, fontweight='bold', color='black')
             
             # --- Right: Ground Truth ---
             ax = axes[1]
@@ -118,12 +117,12 @@ def visualize_predictions(model, dataset, device, save_dir, fold_idx, num_sample
                 ap_50_95 = metrics['AP@0.50:0.95']
                 
                 # Add metrics text at bottom
-                fig.text(0.65, 0.5, 
+                fig.text(0.98, 0.02, 
                         f'Ground Truth: {len(gt_boxes)}\nIoU@0.50:0.95: {iou_50_95:.3f} | AP@0.50:0.95: {ap_50_95:.3f}',
-                        ha='right', fontsize=12, fontweight='bold')
+                        ha='right', va='bottom', fontsize=12, fontweight='bold', color='black')
             else:
-                fig.text(0.65, 0.5, f'Ground Truth: {len(gt_boxes)}', 
-                        ha='right', fontsize=12, fontweight='bold', color='red')
+                fig.text(0.98, 0.02, f'Ground Truth: {len(gt_boxes)}', 
+                        ha='right', va='bottom', fontsize=12, fontweight='bold', color='black')
             
             plt.tight_layout()
             plt.savefig(os.path.join(save_dir, f'prediction_sample_{idx+1}.png'), 
@@ -216,7 +215,7 @@ def plot_fold_metrics(history, fold_idx, save_dir):
 
 def train_one_epoch(model, dataloader, optimizer, device, epoch, scheduler=None,
                    scaler=None, use_amp=False, warmup_iters=0, warmup_factor=0.1, 
-                   global_step=0, base_lr=0.0001):
+                   global_step=0, base_lr=0.0001, model_type='standard'):
     model.train()
     loss_meter = AverageMeter()
     
@@ -267,7 +266,15 @@ def train_one_epoch(model, dataloader, optimizer, device, epoch, scheduler=None,
             
             # Update metrics
             loss_meter.update(losses.item(), len(images))
-            pbar.set_postfix({'loss': f'{loss_meter.avg:.4f}'})
+            
+            # Display loss breakdown for amodal models
+            if model_type == 'amodal' and 'loss_amodal_mask' in loss_dict:
+                pbar.set_postfix({
+                    'loss': f'{loss_meter.avg:.4f}',
+                    'amodal': f'{loss_dict["loss_amodal_mask"].item():.4f}'
+                })
+            else:
+                pbar.set_postfix({'loss': f'{loss_meter.avg:.4f}'})
             
             # Delete tensors to free memory
             del images, targets, loss_dict, losses
@@ -419,18 +426,31 @@ def train_kfold_optimized(config):
         print("="*80)
 
         fold_start_time = time.time()
+        
+        # Create model configuration directory name
+        # Format: backbone_modeltype_optimizer_lr (e.g., resnet50_fpn_v1_amodal_sgd_0.01)
+        lr_str = f"{config['lr']:.0e}" if config['lr'] < 0.01 else f"{config['lr']}"
+        model_config_dir = f"{config['backbone']}_{config['model_type']}_{config['optimizer']}_lr{lr_str}"
+        
+        # Create output directory for this configuration
+        config_output_dir = os.path.join(config['output_dir'], model_config_dir)
+        os.makedirs(config_output_dir, exist_ok=True)
+        
+        # Create checkpoint directory for this configuration
+        config_checkpoint_dir = os.path.join(config['checkpoint_dir'], model_config_dir)
+        os.makedirs(config_checkpoint_dir, exist_ok=True)
 
         wandb.init(
             project="cassiterite-segmentation-ta",
-            name=f"Fold-{fold_num}_{config['backbone']}_{config['model_type']}_{config['optimizer']}",
-            group=f"{config['backbone']}_{config['optimizer']}",
+            name=f"Fold-{fold_num}_{config['backbone']}_{config['model_type']}_{config['optimizer']}_lr{lr_str}",
+            group=f"{config['backbone']}_{config['optimizer']}_lr{lr_str}",
             job_type=f"{config['model_type']}",
             config=config,
             reinit=True
         )
         
-        # Create fold directory (SIMPLIFIED: all in one folder)
-        fold_dir = os.path.join(config['output_dir'], f'fold{fold_num}')
+        # Create fold directory inside configuration directory
+        fold_dir = os.path.join(config_output_dir, f'fold{fold_num}')
         os.makedirs(fold_dir, exist_ok=True)
         
         # DataLoaders
@@ -542,7 +562,8 @@ def train_kfold_optimized(config):
                 warmup_iters=warmup_iters,
                 warmup_factor=warmup_factor,
                 global_step=global_step,
-                base_lr=config['lr']
+                base_lr=config['lr'],
+                model_type=config['model_type']
             )
             
             # Validate with COCO 2025 metrics
@@ -595,7 +616,7 @@ def train_kfold_optimized(config):
                 # Delete previous best checkpoint
                 if best_epoch > 0:
                     old_checkpoint = os.path.join(
-                        config['checkpoint_dir'], 
+                        config_checkpoint_dir,
                         f'fold{fold_num}',
                         f'best_ap_epoch{best_epoch}.pth'
                     )
@@ -604,16 +625,15 @@ def train_kfold_optimized(config):
                 
                 best_ap = ap_50_95
                 best_epoch = epoch
-
-                # Create checkpoint directory with backbone, model_type, and optimizer
-                model_config_dir = f"{config['backbone']}_{config['model_type']}_{config['optimizer']}"
-                fold_checkpoint_dir = os.path.join(config['checkpoint_dir'], model_config_dir, f'fold{fold_num}')
+                
+                # Create fold checkpoint directory
+                fold_checkpoint_dir = os.path.join(config_checkpoint_dir, f'fold{fold_num}')
                 os.makedirs(fold_checkpoint_dir, exist_ok=True)
                 
                 save_checkpoint(
                     model, optimizer, epoch, fold_num, val_loss,
                     save_dir=fold_checkpoint_dir,
-                    filename=f'best_ap_epoch{epoch}.pth'  # Updated filename
+                    filename=f'best_ap_epoch{epoch}.pth'
                 )
                 print(f"  [BEST] AP@0.50:0.95: {best_ap:.4f} at epoch {epoch}")
             
@@ -676,15 +696,21 @@ def train_kfold_optimized(config):
     # Save summary
     summary = {
         'n_folds': config['n_folds'],
-        'best_AP@0.50:0.95': best_aps,  # COCO 2025 naming
+        'best_AP@0.50:0.95': best_aps,
         'best_epochs': best_epochs,
         'mean_AP': float(np.mean(best_aps)),
         'std_AP': float(np.std(best_aps)),
         'best_fold': int(np.argmax(best_aps) + 1),
         'config': config
     }
-    model_config_dir = f"{config['backbone']}_{config['model_type']}_{config['optimizer']}"
-    summary_path = os.path.join(config['output_dir'], model_config_dir, 'kfold_summary.json')
+    
+    # Use the same model_config_dir format
+    lr_str = f"{config['lr']:.0e}" if config['lr'] < 0.01 else f"{config['lr']}"
+    model_config_dir = f"{config['backbone']}_{config['model_type']}_{config['optimizer']}_lr{lr_str}"
+    config_output_dir = os.path.join(config['output_dir'], model_config_dir)
+    os.makedirs(config_output_dir, exist_ok=True)
+    
+    summary_path = os.path.join(config_output_dir, 'kfold_summary.json')
     with open(summary_path, 'w') as f:
         json.dump(summary, f, indent=2)
     print(f"\nSummary saved: {summary_path}")
