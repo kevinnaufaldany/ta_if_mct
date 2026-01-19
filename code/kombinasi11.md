@@ -1,6 +1,9 @@
 uploud data to runpod
 
 ```bash
+# Download dataset
+wget -c https://github.com/kevinnaufaldany/ta_if_mct/releases/download/data/dataset142.tar.gz
+
 # Local PC
 tar -czf dataset11.tar.gz dataset11
 

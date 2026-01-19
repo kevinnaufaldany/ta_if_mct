@@ -75,19 +75,6 @@ def get_maskrcnn_resnet50_fpn_v2(num_classes=2, trainable_layers=3):
     
     return model
 
-
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torchvision.models.detection import maskrcnn_resnet50_fpn, maskrcnn_resnet50_fpn_v2
-from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
-from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
-from torchvision.ops import MultiScaleRoIAlign
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-
-
 # =========================================================
 #   1. Amodal Mask Head (NEW BRANCH)
 # =========================================================
@@ -291,27 +278,43 @@ class AmodalMaskRCNN(nn.Module):
             gt_masks_cat = torch.cat(gt_masks, dim=0).float()
             gt_labels_cat = torch.cat(gt_labels, dim=0)
             
-            # IMPORTANT: Ensure ROI features match GT instances
-            # RoI Align might filter some invalid boxes
+            # IMPORTANT: Match number of GT instances to ROI features
+            # RoI Align may produce fewer outputs than GT boxes (e.g., invalid boxes filtered)
             num_roi_features = amodal_logits.size(0)
             num_gt_instances = gt_labels_cat.size(0)
             
-            if num_roi_features != num_gt_instances:
-                # Truncate GT to match ROI features (happens when some boxes are invalid)
+            # Truncate or pad GT to match ROI features
+            if num_roi_features < num_gt_instances:
+                # More GT than predictions - truncate GT
                 gt_masks_cat = gt_masks_cat[:num_roi_features]
                 gt_labels_cat = gt_labels_cat[:num_roi_features]
+            elif num_roi_features > num_gt_instances:
+                # More predictions than GT - should not happen, but handle it
+                # Truncate predictions instead
+                amodal_logits = amodal_logits[:num_gt_instances]
+            
+            # Now they should match
+            num_instances = min(num_roi_features, num_gt_instances)
+            
+            # Ensure truncation is applied
+            gt_masks_cat = gt_masks_cat[:num_instances]
+            gt_labels_cat = gt_labels_cat[:num_instances]
+            amodal_logits = amodal_logits[:num_instances]
             
             # Resize GT masks to match prediction size (28x28)
             gt_masks_resized = F.interpolate(
                 gt_masks_cat.unsqueeze(1),
-                size=amodal_logits.shape[-2:],
+                size=(28, 28),
                 mode='bilinear',
                 align_corners=False
             ).squeeze(1)
             
             # Select predictions based on GT labels (same as modal mask branch)
-            num_instances = gt_labels_cat.size(0)
-            amodal_logits_selected = amodal_logits[torch.arange(num_instances), gt_labels_cat]
+            amodal_logits_selected = amodal_logits[torch.arange(num_instances, device=amodal_logits.device), gt_labels_cat]
+            
+            # Ensure shapes match before loss calculation
+            assert amodal_logits_selected.shape == gt_masks_resized.shape, \
+                f"Shape mismatch: pred {amodal_logits_selected.shape} vs gt {gt_masks_resized.shape}"
             
             # Binary cross-entropy loss
             loss_amodal_mask = F.binary_cross_entropy_with_logits(
@@ -398,7 +401,6 @@ def get_amodal_model(num_classes=2, backbone="v2", trainable_layers=3):
         backbone=backbone,
         trainable_layers=trainable_layers
     )
-
 
 
 def get_model(num_classes=2, model_type='standard', backbone='resnet50_fpn_v2', trainable_layers=3):

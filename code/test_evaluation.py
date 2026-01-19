@@ -36,22 +36,25 @@ class DetectionError:
 ERROR_COLORS = {
     DetectionError.CORRECT: (0, 255, 0),           # GREEN - Benar
     DetectionError.WRONG_LOCATION: (255, 165, 0),  # ORANGE - Lokasi salah
-    DetectionError.WRONG_LABEL: (255, 0, 255),     # MAGENTA - Label salah
     DetectionError.FALSE_POSITIVE: (255, 0, 0),    # RED - Over-prediction
     DetectionError.FALSE_NEGATIVE: (0, 0, 255),    # BLUE - Under-prediction
     DetectionError.LOW_CONFIDENCE: (255, 255, 0),  # YELLOW - Confidence rendah
 }
 
 
-def load_model(checkpoint_path, num_classes=2, device='cuda'):
+def load_model(checkpoint_path, num_classes=2, model_type='standard', backbone='resnet50_fpn_v2', device='cuda'):
     """Load trained model"""
     print(f"Loading model from: {checkpoint_path}")
+    print(f"Model configuration:")
+    print(f"  - Model type: {model_type}")
+    print(f"  - Backbone: {backbone}")
+    print(f"  - Num classes: {num_classes}")
     
     model = get_model(
         num_classes=num_classes,
-        model_type='amodal',
-        backbone='resnet50',
-        pretrained=False
+        model_type=model_type,
+        backbone=backbone,
+        trainable_layers=3
     )
     
     checkpoint = torch.load(checkpoint_path, map_location=device)
@@ -84,38 +87,29 @@ def load_model(checkpoint_path, num_classes=2, device='cuda'):
     return model
 
 
-def preprocess_image(image_path, target_size=(1080, 1920)):
-    """Preprocess image untuk inference"""
+def preprocess_image(image_path):
+    """Preprocess image untuk inference - menggunakan ukuran asli"""
     image = cv2.imread(image_path)
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    image_resized = cv2.resize(image, (target_size[1], target_size[0]))
     
     transform = A.Compose([
         A.Normalize(mean=(0.0, 0.0, 0.0), std=(1.0, 1.0, 1.0), max_pixel_value=255.0),
         ToTensorV2(),
     ])
     
-    transformed = transform(image=image_resized)
-    return transformed['image'], image_resized
+    transformed = transform(image=image)
+    return transformed['image'], image
 
 
-def load_ground_truth(json_path, target_size=(1080, 1920)):
-    """Load ground truth dengan scaling ke target size"""
+def load_ground_truth(json_path):
+    """Load ground truth - menggunakan ukuran asli tanpa scaling"""
     with open(json_path, 'r') as f:
         data = json.load(f)
-    
-    orig_h = data.get('imageHeight', target_size[0])
-    orig_w = data.get('imageWidth', target_size[1])
-    
-    scale_h = target_size[0] / orig_h
-    scale_w = target_size[1] / orig_w
     
     gt_objects = []
     for shape in data['shapes']:
         if shape['shape_type'] == 'polygon':
             points = np.array(shape['points'], dtype=np.float32)
-            points[:, 0] *= scale_w
-            points[:, 1] *= scale_h
             
             gt_objects.append({
                 'points': points.astype(np.int32),
@@ -140,6 +134,42 @@ def polygon_to_mask(points, image_shape):
     mask = np.zeros(image_shape[:2], dtype=np.uint8)
     cv2.fillPoly(mask, [points], 1)
     return mask
+
+# def split_image_4tiles(image, image_tensor):
+#     """
+#     Split image & tensor menjadi 4 tiles (2x2)
+#     Return list of dict:
+#     {
+#         tile_image,
+#         tile_tensor,
+#         offset_x,
+#         offset_y
+#     }
+#     """
+#     h, w = image.shape[:2]
+#     h2, w2 = h // 2, w // 2
+
+#     tiles = []
+
+#     coords = [
+#         (0, 0),       # top-left
+#         (w2, 0),      # top-right
+#         (0, h2),      # bottom-left
+#         (w2, h2)      # bottom-right
+#     ]
+
+#     for ox, oy in coords:
+#         tile_img = image[oy:oy+h2, ox:ox+w2]
+#         tile_tensor = image_tensor[:, oy:oy+h2, ox:ox+w2]
+
+#         tiles.append({
+#             'image': tile_img,
+#             'tensor': tile_tensor,
+#             'offset_x': ox,
+#             'offset_y': oy
+#         })
+
+#     return tiles
 
 
 def run_inference(model, image_tensor, device, threshold=0.5):
@@ -238,14 +268,12 @@ def Test_matching(predictions, gt_objects, image_shape,
             gt_label = gt_objects[gt_idx]['label']
             
             # Determine error type
-            if iou >= iou_threshold and pred_label == gt_label:
+            if iou >= iou_threshold:
                 if pred_score >= confidence_threshold:
                     error_type = DetectionError.CORRECT
                 else:
                     error_type = DetectionError.LOW_CONFIDENCE
-            elif iou >= iou_threshold and pred_label != gt_label:
-                error_type = DetectionError.WRONG_LABEL
-            elif iou < iou_threshold and pred_label == gt_label:
+            elif iou < iou_threshold:
                 error_type = DetectionError.WRONG_LOCATION
             else:
                 error_type = DetectionError.FALSE_POSITIVE
@@ -295,7 +323,6 @@ def calculate_metrics(matching_result):
     correct = error_counts[DetectionError.CORRECT]
     low_conf = error_counts[DetectionError.LOW_CONFIDENCE]
     wrong_loc = error_counts[DetectionError.WRONG_LOCATION]
-    wrong_label = error_counts[DetectionError.WRONG_LABEL]
     fp = error_counts[DetectionError.FALSE_POSITIVE]
     fn = error_counts[DetectionError.FALSE_NEGATIVE]
     
@@ -318,11 +345,32 @@ def calculate_metrics(matching_result):
     confidences = [pred_err['confidence'] for pred_err in pred_errors]
     mean_confidence = np.mean(confidences) if confidences else 0.0
     
+    # Calculate IoU@0.50:0.95 and AP@0.50:0.95 (COCO metrics)
+    if ious:
+        thresholds = np.arange(0.5, 1.0, 0.05)
+        iou_at_thresholds = []
+        ap_at_thresholds = []
+        
+        for thresh in thresholds:
+            # IoU @ threshold
+            iou_at_thresh = np.mean([iou for iou in ious if iou >= thresh])
+            iou_at_thresholds.append(iou_at_thresh if iou_at_thresh else 0.0)
+            
+            # AP @ threshold (recall based)
+            matched_at_thresh = sum(1 for iou in ious if iou >= thresh)
+            ap = matched_at_thresh / total_gt if total_gt > 0 else 0.0
+            ap_at_thresholds.append(ap)
+        
+        iou_50_95 = np.mean(iou_at_thresholds)
+        ap_50_95 = np.mean(ap_at_thresholds)
+    else:
+        iou_50_95 = 0.0
+        ap_50_95 = 0.0
+    
     return {
         'correct': correct,
         'low_confidence': low_conf,
         'wrong_location': wrong_loc,
-        'wrong_label': wrong_label,
         'false_positive': fp,
         'false_negative': fn,
         'true_positives': tp,
@@ -332,68 +380,119 @@ def calculate_metrics(matching_result):
         'mean_iou': mean_iou,
         'mean_confidence': mean_confidence,
         'total_pred': total_pred,
-        'total_gt': total_gt
+        'total_gt': total_gt,
+        'IoU@0.50:0.95': iou_50_95,
+        'AP@0.50:0.95': ap_50_95
     }
 
 
 def create_Test_visualization(original_image, predictions, gt_objects, 
                                       matching_result, metrics, save_path):
     """
-    Create Test visualization dengan color coding untuk setiap error type.
-    Layout: GT | Prediction | Error Map
+    Create Test visualization dengan 2 file output:
+    1. *_evaluation.png: Predictions | GT (2 panels) dengan keterangan sederhana
+    2. *_error_map.png: GT | Error Map (2 panels) dengan legenda
     """
-    fig = plt.figure(figsize=(30, 10.5))
-    gs = fig.add_gridspec(2, 3, height_ratios=[15, 1.5], hspace=0.02, wspace=0.1,
-                         top=0.98, bottom=0.01, left=0.01, right=0.99)
+    # ========== FILE 1: Predictions | GT (2 Panels) ==========
+    fig, axes = plt.subplots(1, 2, figsize=(20, 10))
     
-    # === PANEL 1: Ground Truth ===
-    ax_gt = fig.add_subplot(gs[0, 0])
-    image_gt = original_image.copy()
-    
-    for gt_obj in gt_objects:
-        mask = polygon_to_mask(gt_obj['points'], original_image.shape)
-        overlay = image_gt.copy()
-        overlay[mask == 1] = (0, 255, 0)  # Green for GT
-        image_gt = cv2.addWeighted(image_gt, 0.6, overlay, 0.4, 0)
-        
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        cv2.drawContours(image_gt, contours, -1, (0, 255, 0), 2)
-    
-    ax_gt.imshow(image_gt)
-    ax_gt.set_title(f'Ground Truth ({metrics["total_gt"]} objects)', 
-                   fontsize=17, fontweight='bold', pad=12)
-    ax_gt.axis('off')
-    
-    # === PANEL 2: Predictions (All) ===
-    ax_pred = fig.add_subplot(gs[0, 1])
+    # --- Left Panel: Predictions ---
+    ax = axes[0]
     image_pred = original_image.copy()
     
     for pred_mask in predictions['masks']:
         if len(pred_mask.shape) == 3:
             pred_mask = pred_mask[0]
         mask_binary = (pred_mask > 0.5).astype(np.uint8)
-        
-        overlay = image_pred.copy()
-        overlay[mask_binary == 1] = (255, 0, 0)  # Red for predictions
-        image_pred = cv2.addWeighted(image_pred, 0.6, overlay, 0.4, 0)
-        
         contours, _ = cv2.findContours(mask_binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        cv2.drawContours(image_pred, contours, -1, (255, 0, 0), 2)
+        for contour in contours:
+            contour = contour.squeeze()
+            if contour.ndim == 2 and len(contour) >= 3:
+                ax.plot(contour[:, 0], contour[:, 1], 'r-', linewidth=2, alpha=0.8)
+                ax.fill(contour[:, 0], contour[:, 1], 'r', alpha=0.3)
     
-    ax_pred.imshow(image_pred)
-    ax_pred.set_title(f'All Predictions ({metrics["total_pred"]} objects)', 
-                     fontsize=17, fontweight='bold', pad=12)
-    ax_pred.axis('off')
+    ax.imshow(image_pred)
+    ax.set_title('Predictions - Cassiterite Detection', fontsize=14, fontweight='bold')
+    ax.axis('off')
     
-    # === PANEL 3: Error Map (Color Coded) ===
-    ax_error = fig.add_subplot(gs[0, 2])
+    # --- Right Panel: Ground Truth ---
+    ax = axes[1]
+    image_gt = original_image.copy()
+    
+    for gt_obj in gt_objects:
+        mask = polygon_to_mask(gt_obj['points'], original_image.shape)
+        mask_binary = mask.astype(np.uint8)
+        contours, _ = cv2.findContours(mask_binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for contour in contours:
+            contour = contour.squeeze()
+            if contour.ndim == 2:
+                ax.plot(contour[:, 0], contour[:, 1], 'r-', linewidth=2, alpha=0.8)
+                ax.fill(contour[:, 0], contour[:, 1], 'r', alpha=0.3)
+    
+    ax.imshow(image_gt)
+    ax.set_title('Ground Truth', fontsize=14, fontweight='bold')
+    ax.axis('off')
+    
+    # Statistics at bottom
+    total_pred = metrics['total_pred']
+    total_gt = metrics['total_gt']
+    avg_conf = metrics['mean_confidence']
+    iou_50_95 = metrics.get('IoU@0.50:0.95', metrics['mean_iou'])
+    ap_50_95 = metrics.get('AP@0.50:0.95', 0.0)
+    
+    fig.text(0.02, 0.18, f'Total: {total_pred}\nAvg Confidence: {avg_conf:.3f}', 
+            ha='left', va='bottom', fontsize=12, fontweight='bold', color='black')
+    
+    fig.text(0.98, 0.18, f'Ground Truth: {total_gt}\nIoU@0.50:0.95: {iou_50_95:.3f} | AP@0.50:0.95: {ap_50_95:.3f}', 
+            ha='right', va='bottom', fontsize=12, fontweight='bold', color='black')
+    
+    plt.tight_layout(pad=1.5)
+    plt.savefig(save_path, dpi=150, bbox_inches='tight')
+    plt.close()
+    
+    print(f"  ✓ Saved: {save_path}")
+    
+    # ========== FILE 2: GT | Error Map dengan Legenda ==========
+    error_map_path = save_path.replace('_evaluation.png', '_error_map.png')
+    
+    fig = plt.figure(figsize=(20, 10))
+    gs = fig.add_gridspec(1, 2, wspace=0.02)  # wspace kecil untuk jarak dekat
+    ax_gt = fig.add_subplot(gs[0, 0])
+    ax_error = fig.add_subplot(gs[0, 1])
+    
+    # --- Left Panel: Ground Truth ---
+    ax_gt.imshow(original_image)
+    ax_gt.set_title('Ground Truth', fontsize=14, fontweight='bold')
+    ax_gt.axis('off')
+    
+    for gt_obj in gt_objects:
+        mask = polygon_to_mask(gt_obj['points'], original_image.shape)
+        mask_binary = mask.astype(np.uint8)
+        contours, _ = cv2.findContours(mask_binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        for contour in contours:
+            contour = contour.squeeze()
+            if contour.ndim == 2:
+                ax_gt.plot(contour[:, 0], contour[:, 1], 'r-', linewidth=2, alpha=0.8)
+                ax_gt.fill(contour[:, 0], contour[:, 1], 'r', alpha=0.3)
+    
+    # --- Right Panel: Error Map ---
     image_error = original_image.copy()
+    
+    # Count error types
+    error_counts = {
+        DetectionError.CORRECT: 0,
+        DetectionError.LOW_CONFIDENCE: 0,
+        DetectionError.WRONG_LOCATION: 0,
+        DetectionError.FALSE_POSITIVE: 0,
+        DetectionError.FALSE_NEGATIVE: 0
+    }
     
     # Draw predictions dengan warna sesuai error type
     for pred_err in matching_result['prediction_errors']:
         pred_idx = pred_err['pred_idx']
         error_type = pred_err['error_type']
         color = ERROR_COLORS[error_type]
+        error_counts[error_type] += 1
         
         pred_mask = predictions['masks'][pred_idx]
         if len(pred_mask.shape) == 3:
@@ -407,11 +506,12 @@ def create_Test_visualization(original_image, predictions, gt_objects,
         contours, _ = cv2.findContours(mask_binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         cv2.drawContours(image_error, contours, -1, color, 2)
     
-    # Draw false negatives (undetected GT)
+    # Draw false negatives
     for gt_err in matching_result['gt_errors']:
         gt_idx = gt_err['gt_idx']
         gt_obj = gt_objects[gt_idx]
         color = ERROR_COLORS[DetectionError.FALSE_NEGATIVE]
+        error_counts[DetectionError.FALSE_NEGATIVE] += 1
         
         mask = polygon_to_mask(gt_obj['points'], original_image.shape)
         overlay = image_error.copy()
@@ -422,96 +522,43 @@ def create_Test_visualization(original_image, predictions, gt_objects,
         cv2.drawContours(image_error, contours, -1, color, 2)
     
     ax_error.imshow(image_error)
-    ax_error.set_title('Error Analysis Map (Color Coded)', 
-                      fontsize=17, fontweight='bold', pad=12)
+    ax_error.set_title('Error Map', fontsize=14, fontweight='bold')
     ax_error.axis('off')
     
-    # Legend
+    # --- Legend di lower right dengan kotak ---
     legend_elements = [
-        plt.Line2D([0], [0], marker='o', color='w', label=f'Correct ({metrics["correct"]})',
+        plt.Line2D([0], [0], marker='o', color='w', label=f'Correct ({error_counts[DetectionError.CORRECT]})',
                   markerfacecolor=np.array(ERROR_COLORS[DetectionError.CORRECT])/255, markersize=10),
-        plt.Line2D([0], [0], marker='o', color='w', label=f'Low Conf ({metrics["low_confidence"]})',
+        plt.Line2D([0], [0], marker='o', color='w', label=f'Low Conf ({error_counts[DetectionError.LOW_CONFIDENCE]})',
                   markerfacecolor=np.array(ERROR_COLORS[DetectionError.LOW_CONFIDENCE])/255, markersize=10),
-        plt.Line2D([0], [0], marker='o', color='w', label=f'Wrong Loc ({metrics["wrong_location"]})',
+        plt.Line2D([0], [0], marker='o', color='w', label=f'Wrong Loc ({error_counts[DetectionError.WRONG_LOCATION]})',
                   markerfacecolor=np.array(ERROR_COLORS[DetectionError.WRONG_LOCATION])/255, markersize=10),
-        plt.Line2D([0], [0], marker='o', color='w', label=f'Wrong Label ({metrics["wrong_label"]})',
-                  markerfacecolor=np.array(ERROR_COLORS[DetectionError.WRONG_LABEL])/255, markersize=10),
-        plt.Line2D([0], [0], marker='o', color='w', label=f'False Pos ({metrics["false_positive"]})',
+        plt.Line2D([0], [0], marker='o', color='w', label=f'False Pos ({error_counts[DetectionError.FALSE_POSITIVE]})',
                   markerfacecolor=np.array(ERROR_COLORS[DetectionError.FALSE_POSITIVE])/255, markersize=10),
-        plt.Line2D([0], [0], marker='o', color='w', label=f'False Neg ({metrics["false_negative"]})',
+        plt.Line2D([0], [0], marker='o', color='w', label=f'False Neg ({error_counts[DetectionError.FALSE_NEGATIVE]})',
                   markerfacecolor=np.array(ERROR_COLORS[DetectionError.FALSE_NEGATIVE])/255, markersize=10),
     ]
-    ax_error.legend(handles=legend_elements, loc='upper right', fontsize=9)
     
-    # === INFO PANEL ===
-    ax_info = fig.add_subplot(gs[1, :])
-    ax_info.axis('off')
+    ax_error.legend(handles=legend_elements, loc='lower right', ncol=5, fontsize=9, frameon=True, fancybox=True, shadow=True, bbox_to_anchor=(0.5, -0.12))
     
-    # 3 columns x 3 rows
-    col1_x = 0.05
-    col2_x = 0.38
-    col3_x = 0.71
-    
-    row_height = 0.30
-    row1_y = 0.75
-    row2_y = row1_y - row_height
-    row3_y = row2_y - row_height
-    
-    # === Row 1 ===
-    ax_info.text(col1_x, row1_y, f"Total Predictions : {metrics['total_pred']}",
-                transform=ax_info.transAxes, va='center', ha='left',
-                fontfamily='monospace', fontsize=13, color='#CC0000', fontweight='bold')
-    
-    ax_info.text(col2_x, row1_y, f"Total GT : {metrics['total_gt']}",
-                transform=ax_info.transAxes, va='center', ha='left',
-                fontfamily='monospace', fontsize=13, color='#00008B', fontweight='bold')
-    
-    ax_info.text(col3_x, row1_y, f"Precision : {metrics['precision']:.4f}",
-                transform=ax_info.transAxes, va='center', ha='left',
-                fontfamily='monospace', fontsize=13, color='#006400', fontweight='normal')
-    
-    # === Row 2 ===
-    ax_info.text(col1_x, row2_y, f"Correct : {metrics['correct']}",
-                transform=ax_info.transAxes, va='center', ha='left',
-                fontfamily='monospace', fontsize=13, color='#228B22', fontweight='normal')
-    
-    ax_info.text(col2_x, row2_y, f"Mean IoU : {metrics['mean_iou']:.4f}",
-                transform=ax_info.transAxes, va='center', ha='left',
-                fontfamily='monospace', fontsize=13, color='#800080', fontweight='normal')
-    
-    ax_info.text(col3_x, row2_y, f"Recall : {metrics['recall']:.4f}",
-                transform=ax_info.transAxes, va='center', ha='left',
-                fontfamily='monospace', fontsize=13, color='#006400', fontweight='normal')
-    
-    # === Row 3 ===
-    error_summary = f"Errors: FP={metrics['false_positive']} FN={metrics['false_negative']} WL={metrics['wrong_location']} WLabel={metrics['wrong_label']}"
-    ax_info.text(col1_x, row3_y, error_summary,
-                transform=ax_info.transAxes, va='center', ha='left',
-                fontfamily='monospace', fontsize=12, color='#DC143C', fontweight='normal')
-    
-    ax_info.text(col2_x, row3_y, f"Avg Confidence : {metrics['mean_confidence']:.4f}",
-                transform=ax_info.transAxes, va='center', ha='left',
-                fontfamily='monospace', fontsize=13, color='#FF8C00', fontweight='normal')
-    
-    ax_info.text(col3_x, row3_y, f"F1-Score : {metrics['f1_score']:.4f}",
-                transform=ax_info.transAxes, va='center', ha='left',
-                fontfamily='monospace', fontsize=13, color='#006400', fontweight='bold')
-    
-    plt.savefig(save_path, dpi=150, bbox_inches='tight', pad_inches=0.05)
+    plt.tight_layout()
+    plt.savefig(error_map_path, dpi=150, bbox_inches='tight')
     plt.close()
     
-    print(f"  ✓ Saved: {save_path}")
+    print(f"  ✓ Saved: {error_map_path}")
 
 
 def evaluate_testset(checkpoint_path, testset_dir='testset', output_dir='test_evaluation',
                     threshold=0.5, iou_threshold=0.5, confidence_threshold=0.7,
-                    image_size=(1080, 1920)):
+                    model_type='standard', backbone='resnet50_fpn_v2'):
     """
     Main function untuk Test evaluation
     """
     print("="*90)
     print("Test CASSITERITE DETECTION EVALUATION")
     print("="*90)
+    print(f"Model Type: {model_type}")
+    print(f"Backbone: {backbone}")
     print(f"Testset: {testset_dir}")
     print(f"Output: {output_dir}")
     print(f"Confidence threshold: {threshold}")
@@ -524,7 +571,7 @@ def evaluate_testset(checkpoint_path, testset_dir='testset', output_dir='test_ev
     os.makedirs(output_dir, exist_ok=True)
     
     # Load model
-    model = load_model(checkpoint_path, device=device)
+    model = load_model(checkpoint_path, model_type=model_type, backbone=backbone, device=device)
     
     # Get images
     image_files = sorted([f for f in os.listdir(testset_dir) 
@@ -547,9 +594,9 @@ def evaluate_testset(checkpoint_path, testset_dir='testset', output_dir='test_ev
         
         print(f"[{idx}/{len(image_files)}] {img_file}")
         
-        # Load & process
-        image_tensor, original_image = preprocess_image(img_path, image_size)
-        gt_objects = load_ground_truth(json_path, image_size)
+        # Load & process - menggunakan ukuran asli
+        image_tensor, original_image = preprocess_image(img_path)
+        gt_objects = load_ground_truth(json_path)
         predictions = run_inference(model, image_tensor, device, threshold)
         
         # Test matching
@@ -569,44 +616,43 @@ def evaluate_testset(checkpoint_path, testset_dir='testset', output_dir='test_ev
         )
         
         # Print summary
-        print(f"  Pred: {metrics['total_pred']} | GT: {metrics['total_gt']}")
-        print(f"  ✓ Correct: {metrics['correct']} | ⚠ Low Conf: {metrics['low_confidence']}")
-        print(f"  ❌ FP: {metrics['false_positive']} | FN: {metrics['false_negative']}")
-        print(f"  📍 Wrong Loc: {metrics['wrong_location']} | 🏷️  Wrong Label: {metrics['wrong_label']}")
-        print(f"  📊 Precision: {metrics['precision']:.3f} | Recall: {metrics['recall']:.3f} | F1: {metrics['f1_score']:.3f}")
-        print(f"  📈 Mean IoU: {metrics['mean_iou']:.3f}\n")
+        # print(f"  Pred: {metrics['total_pred']} | GT: {metrics['total_gt']}")
+        # print(f"  ✓ Correct: {metrics['correct']} | ⚠ Low Conf: {metrics['low_confidence']}")
+        # print(f"  ❌ FP: {metrics['false_positive']} | FN: {metrics['false_negative']}")
+        # print(f"  📍 Wrong Loc: {metrics['wrong_location']}")
+        # print(f"  📊 Precision: {metrics['precision']:.3f} | Recall: {metrics['recall']:.3f} | F1: {metrics['f1_score']:.3f}")
+        # print(f"  📈 Mean IoU: {metrics['mean_iou']:.3f}\n")
         
         # Accumulate
-        for key in ['correct', 'low_confidence', 'wrong_location', 'wrong_label',
+        for key in ['correct', 'low_confidence', 'wrong_location',
                    'false_positive', 'false_negative', 'total_pred', 'total_gt']:
             global_metrics[key] += metrics[key]
         
         all_results.append(metrics)
     
     # Print global summary
-    print("\n" + "="*90)
-    print("GLOBAL SUMMARY")
-    print("="*90)
+    # print("\n" + "="*90)
+    # print("GLOBAL SUMMARY")
+    # print("="*90)
     print(f"Total Images: {len(all_results)}")
     print(f"Total Predictions: {global_metrics['total_pred']}")
     print(f"Total Ground Truth: {global_metrics['total_gt']}")
-    print(f"\n📊 Detection Breakdown:")
-    print(f"  ✅ Correct: {global_metrics['correct']}")
-    print(f"  ⚠️  Low Confidence: {global_metrics['low_confidence']}")
-    print(f"  ❌ False Positives: {global_metrics['false_positive']}")
-    print(f"  ❌ False Negatives: {global_metrics['false_negative']}")
-    print(f"  📍 Wrong Location: {global_metrics['wrong_location']}")
-    print(f"  🏷️  Wrong Label: {global_metrics['wrong_label']}")
+    # print(f"\n📊 Detection Breakdown:")
+    # print(f"  ✅ Correct: {global_metrics['correct']}")
+    # print(f"  ⚠️  Low Confidence: {global_metrics['low_confidence']}")
+    # print(f"  ❌ False Positives: {global_metrics['false_positive']}")
+    # print(f"  ❌ False Negatives: {global_metrics['false_negative']}")
+    # print(f"  📍 Wrong Location: {global_metrics['wrong_location']}")
     
     tp = global_metrics['correct'] + global_metrics['low_confidence']
     precision = tp / global_metrics['total_pred'] if global_metrics['total_pred'] > 0 else 0
     recall = tp / global_metrics['total_gt'] if global_metrics['total_gt'] > 0 else 0
     f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0
     
-    print(f"\n📈 Overall Performance:")
-    print(f"  Precision: {precision:.4f} ({precision*100:.2f}%)")
-    print(f"  Recall: {recall:.4f} ({recall*100:.2f}%)")
-    print(f"  F1-Score: {f1:.4f}")
+    # print(f"\n📈 Overall Performance:")
+    # print(f"  Precision: {precision:.4f} ({precision*100:.2f}%)")
+    # print(f"  Recall: {recall:.4f} ({recall*100:.2f}%)")
+    # print(f"  F1-Score: {f1:.4f}")
     
     mean_iou = np.mean([r['mean_iou'] for r in all_results])
     print(f"  Mean IoU: {mean_iou:.4f}")
@@ -623,6 +669,12 @@ def main():
     )
     parser.add_argument('--checkpoint', type=str, required=True,
                        help='Path to model checkpoint')
+    parser.add_argument('--model_type', type=str, default='standard',
+                       choices=['standard', 'amodal'],
+                       help='Model type: standard or amodal')
+    parser.add_argument('--backbone', type=str, default='resnet50_fpn_v2',
+                       choices=['resnet50_fpn_v1', 'resnet50_fpn_v2'],
+                       help='Backbone architecture')
     parser.add_argument('--testset_dir', type=str, default='testset',
                        help='Directory containing test images and JSONs')
     parser.add_argument('--output_dir', type=str, default='test_evaluation',
@@ -633,8 +685,6 @@ def main():
                        help='IoU threshold for matching')
     parser.add_argument('--confidence_threshold', type=float, default=0.7,
                        help='Threshold untuk high-confidence detection')
-    parser.add_argument('--image_size', type=int, nargs=2, default=[1080, 1920],
-                       help='Target image size (height width)')
     
     args = parser.parse_args()
     
@@ -645,7 +695,8 @@ def main():
         threshold=args.threshold,
         iou_threshold=args.iou_threshold,
         confidence_threshold=args.confidence_threshold,
-        image_size=tuple(args.image_size)
+        model_type=args.model_type,
+        backbone=args.backbone
     )
 
 

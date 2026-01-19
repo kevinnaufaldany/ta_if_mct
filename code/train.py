@@ -85,7 +85,7 @@ def visualize_predictions(model, dataset, device, save_dir, fold_idx, num_sample
             # Statistics
             total_pred = len(pred_boxes)
             avg_conf = pred_scores.mean() if len(pred_scores) > 0 else 0.0
-            fig.text(0.02, 0.02, f'Total: {total_pred}\nAvg Confidence: {avg_conf:.3f}', 
+            fig.text(0.02, 0.18, f'Total: {total_pred}\nAvg Confidence: {avg_conf:.3f}', 
                     ha='left', va='bottom', fontsize=12, fontweight='bold', color='black')
             
             # --- Right: Ground Truth ---
@@ -117,11 +117,11 @@ def visualize_predictions(model, dataset, device, save_dir, fold_idx, num_sample
                 ap_50_95 = metrics['AP@0.50:0.95']
                 
                 # Add metrics text at bottom
-                fig.text(0.98, 0.02, 
+                fig.text(0.98, 0.18, 
                         f'Ground Truth: {len(gt_boxes)}\nIoU@0.50:0.95: {iou_50_95:.3f} | AP@0.50:0.95: {ap_50_95:.3f}',
                         ha='right', va='bottom', fontsize=12, fontweight='bold', color='black')
             else:
-                fig.text(0.98, 0.02, f'Ground Truth: {len(gt_boxes)}', 
+                fig.text(0.98, 0.18, f'Ground Truth: {len(gt_boxes)}', 
                         ha='right', va='bottom', fontsize=12, fontweight='bold', color='black')
             
             plt.tight_layout()
@@ -149,7 +149,7 @@ def plot_fold_metrics(history, fold_idx, save_dir):
     # Set style
     sns.set_style("whitegrid")
     
-    # 1. Plot Loss
+    # 1. Plot Loss (Train vs Val - without amodal)
     plt.figure(figsize=(10, 6))
     plt.plot(epochs, history['train_loss'], 'b-', label='Train Loss', linewidth=2)
     plt.plot(epochs, history['val_loss'], 'r-', label='Val Loss', linewidth=2)
@@ -206,11 +206,37 @@ def plot_fold_metrics(history, fold_idx, save_dir):
     plt.savefig(os.path.join(save_dir, f'mean_metrics_comparison_fold{fold_idx}.png'), dpi=150)
     plt.close()
     
-    print(f"  4 plots saved to {save_dir}")
-    print(f"    - loss_fold{fold_idx}.png")
-    print(f"    - ap_fold{fold_idx}.png")
-    print(f"    - iou_fold{fold_idx}.png")
-    print(f"    - mean_metrics_comparison_fold{fold_idx}.png")
+    # Create dedicated amodal loss comparison plot if amodal model
+    plot_count = 4
+    if 'train_loss_amodal' in history and len(history['train_loss_amodal']) > 0:
+        plt.figure(figsize=(10, 6))
+        plt.plot(epochs, history['train_loss_amodal'], 'orange', label='Train Amodal Loss', linewidth=2.5, marker='o', markersize=5)
+        
+        # Add val amodal loss if available
+        if 'val_loss_amodal' in history and len(history['val_loss_amodal']) > 0:
+            plt.plot(epochs, history['val_loss_amodal'], 'green', label='Val Amodal Loss', linewidth=2.5, marker='s', markersize=5)
+        
+        plt.xlabel('Epoch', fontsize=12)
+        plt.ylabel('Amodal Loss', fontsize=12)
+        plt.title(f'Amodal Mask Loss (Train vs Val) - Fold {fold_idx}', fontsize=14, fontweight='bold')
+        plt.legend(fontsize=11)
+        plt.grid(True, alpha=0.3)
+        plt.tight_layout()
+        plt.savefig(os.path.join(save_dir, f'amodal_loss_fold{fold_idx}.png'), dpi=150)
+        plt.close()
+        plot_count = 5
+        print(f"  {plot_count} plots saved to {save_dir}")
+        print(f"    - loss_fold{fold_idx}.png")
+        print(f"    - ap_fold{fold_idx}.png")
+        print(f"    - iou_fold{fold_idx}.png")
+        print(f"    - mean_metrics_comparison_fold{fold_idx}.png")
+        print(f"    - amodal_loss_fold{fold_idx}.png (train vs val amodal)")
+    else:
+        print(f"  {plot_count} plots saved to {save_dir}")
+        print(f"    - loss_fold{fold_idx}.png")
+        print(f"    - ap_fold{fold_idx}.png")
+        print(f"    - iou_fold{fold_idx}.png")
+        print(f"    - mean_metrics_comparison_fold{fold_idx}.png")
 
 
 def train_one_epoch(model, dataloader, optimizer, device, epoch, scheduler=None,
@@ -218,6 +244,7 @@ def train_one_epoch(model, dataloader, optimizer, device, epoch, scheduler=None,
                    global_step=0, base_lr=0.0001, model_type='standard'):
     model.train()
     loss_meter = AverageMeter()
+    amodal_loss_meter = AverageMeter()  # Track amodal loss separately
     
     pbar = tqdm(dataloader, desc=f'Epoch {epoch}')
     
@@ -267,11 +294,12 @@ def train_one_epoch(model, dataloader, optimizer, device, epoch, scheduler=None,
             # Update metrics
             loss_meter.update(losses.item(), len(images))
             
-            # Display loss breakdown for amodal models
+            # Track amodal loss separately for amodal models
             if model_type == 'amodal' and 'loss_amodal_mask' in loss_dict:
+                amodal_loss_meter.update(loss_dict['loss_amodal_mask'].item(), len(images))
                 pbar.set_postfix({
                     'loss': f'{loss_meter.avg:.4f}',
-                    'amodal': f'{loss_dict["loss_amodal_mask"].item():.4f}'
+                    'amodal': f'{amodal_loss_meter.avg:.4f}'
                 })
             else:
                 pbar.set_postfix({'loss': f'{loss_meter.avg:.4f}'})
@@ -288,13 +316,16 @@ def train_one_epoch(model, dataloader, optimizer, device, epoch, scheduler=None,
                 print("CUDA out of memory! Try reducing batch_size to 1 or disable AMP.")
             raise e
     
-    return loss_meter.avg, global_step
+    # Return amodal loss if available (will be None for standard models)
+    amodal_loss = amodal_loss_meter.avg if amodal_loss_meter.count > 0 else None
+    return loss_meter.avg, global_step, amodal_loss
 
 
 @torch.no_grad()
-def validate(model, dataloader, device, use_amp=False):
+def validate(model, dataloader, device, use_amp=False, model_type='standard'):
     model.eval()
     loss_meter = AverageMeter()
+    amodal_loss_meter = AverageMeter()  # Track amodal loss for validation
     
     all_predictions = []
     all_targets = []
@@ -317,6 +348,10 @@ def validate(model, dataloader, device, use_amp=False):
         model.eval()
         
         loss_meter.update(losses.item(), len(images))
+        
+        # Track amodal loss separately for amodal models
+        if model_type == 'amodal' and 'loss_amodal_mask' in loss_dict:
+            amodal_loss_meter.update(loss_dict['loss_amodal_mask'].item(), len(images))
         
         # Get predictions
         if use_amp:
@@ -355,6 +390,10 @@ def validate(model, dataloader, device, use_amp=False):
         'IoU@0.50': eval_metrics['IoU@0.50'],
         'IoU@0.75': eval_metrics['IoU@0.75'],
     }
+    
+    # Add validation amodal loss if available
+    if amodal_loss_meter.count > 0:
+        results['val_loss_amodal'] = amodal_loss_meter.avg
     
     return results
 
@@ -411,8 +450,8 @@ def train_kfold_optimized(config):
     print("\nPreparing K-Fold datasets...")
     fold_datasets = prepare_kfold_datasets(
         root_dir=config['data_dir'],
-        n_splits=config['n_folds'],
-        target_size=tuple(config['image_size'])
+        n_splits=config['n_folds']
+        # target_size=tuple(config['image_size'])
     )
     
     all_fold_results = []
@@ -441,7 +480,7 @@ def train_kfold_optimized(config):
         os.makedirs(config_checkpoint_dir, exist_ok=True)
 
         wandb.init(
-            project="cassiterite-segmentation-ta",
+            project="cassiterite-segmentation-ta2",
             name=f"Fold-{fold_num}_{config['backbone']}_{config['model_type']}_{config['optimizer']}_lr{lr_str}",
             group=f"{config['backbone']}_{config['optimizer']}_lr{lr_str}",
             job_type=f"{config['model_type']}",
@@ -542,6 +581,11 @@ def train_kfold_optimized(config):
             'lr': []
         }
         
+        # Add amodal loss tracking for amodal models
+        if config['model_type'] == 'amodal':
+            history['train_loss_amodal'] = []
+            history['val_loss_amodal'] = []
+        
         best_ap = 0.0  # Track best AP@0.50:0.95 (PRIMARY METRIC)
         best_epoch = 0
         global_step = 0  # Track global step for warmup
@@ -554,7 +598,7 @@ def train_kfold_optimized(config):
             start_time = time.time()
 
             # Train (scheduler steps per-batch inside train_one_epoch)
-            train_loss, global_step = train_one_epoch(
+            train_loss, global_step, amodal_loss = train_one_epoch(
                 model, train_loader, optimizer, device, epoch,
                 scheduler=scheduler,
                 scaler=scaler,
@@ -567,7 +611,7 @@ def train_kfold_optimized(config):
             )
             
             # Validate with COCO 2025 metrics
-            val_results = validate(model, val_loader, device, use_amp=use_amp)
+            val_results = validate(model, val_loader, device, use_amp=use_amp, model_type=config['model_type'])
             epoch_time = time.time() - start_time
             
 
@@ -584,9 +628,16 @@ def train_kfold_optimized(config):
             history['IoU@0.50'].append(val_results['IoU@0.50'])
             history['IoU@0.75'].append(val_results['IoU@0.75'])
             history['lr'].append(optimizer.param_groups[0]['lr'])
+            
+            # Save amodal loss if available
+            if config['model_type'] == 'amodal':
+                if amodal_loss is not None:
+                    history['train_loss_amodal'].append(amodal_loss)
+                if 'val_loss_amodal' in val_results:
+                    history['val_loss_amodal'].append(val_results['val_loss_amodal'])
     
             # === Logging ke Weights & Biases ===
-            wandb.log({
+            wandb_log = {
                 "epoch": epoch,
                 "train_loss": train_loss,
                 "val_loss": val_results['val_loss'],
@@ -599,11 +650,25 @@ def train_kfold_optimized(config):
                 "LearningRate": optimizer.param_groups[0]['lr'],
                 "EpochTime(sec)": epoch_time,
                 "Fold": fold_num,
-            })
+            }
+            
+            # Add amodal loss to wandb if available
+            if config['model_type'] == 'amodal':
+                if amodal_loss is not None:
+                    wandb_log["train_loss_amodal"] = amodal_loss
+                if 'val_loss_amodal' in val_results:
+                    wandb_log["val_loss_amodal"] = val_results['val_loss_amodal']
+            
+            wandb.log(wandb_log)
             
             # Print summary (COCO 2025 format)
             print(f"Epoch {epoch} Summary:")
             print(f"  Train Loss: {train_loss:.4f} | Val Loss: {val_loss:.4f}")
+            if config['model_type'] == 'amodal':
+                if amodal_loss is not None and 'val_loss_amodal' in val_results:
+                    print(f"  Train Amodal Loss: {amodal_loss:.4f} | Val Amodal Loss: {val_results['val_loss_amodal']:.4f}")
+                elif amodal_loss is not None:
+                    print(f"  Train Amodal Loss: {amodal_loss:.4f}")
             print(f"  AP@0.50: {val_results['AP@0.50']:.4f}")
             print(f"  AP@0.75: {val_results['AP@0.75']:.4f}")
             print(f"  AP@0.50:0.95: {ap_50_95:.4f}")
@@ -721,10 +786,8 @@ def main():
     parser = argparse.ArgumentParser(description='Train Amodal Instance Segmentation Model (Optimized)')
     
     # Data
-    parser.add_argument('--data_dir', type=str, default='dataset11',
+    parser.add_argument('--data_dir', type=str, default='dataset3',
                        help='Path to dataset folder')
-    parser.add_argument('--image_size', type=int, nargs=2, default=[1080, 1920],
-                       help='Image size (height width)')
     
     # Training mode (K-Fold only)
     parser.add_argument('--n_folds', type=int, default=5,
