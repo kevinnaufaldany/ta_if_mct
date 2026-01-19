@@ -1,6 +1,16 @@
 # Code After Split The Result
 - `datareader.py` akan langsung melakukan **split grid 2 * 2** seperti pada contoh 
-![Benchmark Awal](figure/tiled_paper.png) 
+<!-- - ![Benchmark Awal](figure/tiled_paper.png)  -->
+<table align="center">
+  <tr>
+    <td align="center" width="100%">
+      <img src="figure/tiled_paper.png" alt="Gambar" width="1000"/>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="100%">figure/tiled_paper.png</td>
+  </tr>
+</table>
 
 - atau sesuai pada yang ada di folder `figure\ex_tiled` sudah ada image original yakni `figure\ex_tiled\285-25100F_Ori.jpg` berserta .json ori nya yakni `figure\ex_tiled\285-25100F_Ori.json` \
 &
