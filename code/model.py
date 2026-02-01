@@ -12,12 +12,6 @@ from torchvision.ops import MultiScaleRoIAlign
 def get_maskrcnn_resnet50_fpn_v1(num_classes=2, trainable_layers=3):
     """
     Create Mask R-CNN with ResNet50 + FPN V1 backbone pretrained on COCO.
-    
-    Args:
-        num_classes: Number of classes (including background)
-        trainable_layers: Number of trainable layers (0-5)
-    
-    Returns:
         model: Mask R-CNN V1 with COCO pretrained weights
     """
     # Load pretrained Mask R-CNN V1 with COCO weights
@@ -45,13 +39,6 @@ def get_maskrcnn_resnet50_fpn_v1(num_classes=2, trainable_layers=3):
 def get_maskrcnn_resnet50_fpn_v2(num_classes=2, trainable_layers=3):
     """
     Create Mask R-CNN with ResNet50 + FPN V2 backbone pretrained on COCO.
-    V2 with COCO weights - BEST performance for transfer learning.
-    
-    Args:
-        num_classes: Number of classes (including background)
-        trainable_layers: Number of trainable layers (0-5)
-    
-    Returns:
         model: Mask R-CNN V2 with COCO pretrained weights
     """
     # Load pretrained Mask R-CNN V2 with COCO weights

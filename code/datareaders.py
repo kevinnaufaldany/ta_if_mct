@@ -233,9 +233,8 @@ class CassiteriteDataset(Dataset):
         
         # Convert to numpy arrays
         if len(masks) == 0:
-            # Jika tile tidak memiliki objek, buat dummy object kecil
-            # Ini akan di-filter nanti atau bisa di-skip
-            raise ValueError(f"No valid object found in tile {tile_id} of {img_name}")
+            # print(f"Warning: Tile {tile_id} of {img_name} has no objects. Skipping to next...")
+            return self.__getitem__((idx + 1) % len(self.tile_index))
         
         masks = np.array(masks, dtype=np.uint8)
         labels = np.array(labels, dtype=np.int64)
@@ -254,7 +253,8 @@ class CassiteriteDataset(Dataset):
             # Handle transformed masks
             transformed_masks = transformed['masks']
             if len(transformed_masks) == 0:
-                raise ValueError(f"All objects removed after transform in tile {tile_id} of {img_name}")
+                # print(f"Warning: Augmentation removed all objects in tile {tile_id} of {img_name}. Skipping to next...")
+                return self.__getitem__((idx + 1) % len(self.tile_index))
             
             masks = np.array(transformed_masks)
             
@@ -279,7 +279,8 @@ class CassiteriteDataset(Dataset):
                 valid_indices.append(i)
             
             if len(boxes) == 0:
-                raise ValueError(f"No valid boxes after transform in tile {tile_id} of {img_name}")
+                # print(f"Warning: No valid boxes after augmentation in tile {tile_id} of {img_name}. Skipping to next...")
+                return self.__getitem__((idx + 1) % len(self.tile_index))
             
             # Filter masks dan labels berdasarkan valid indices
             masks = masks[valid_indices]
@@ -313,7 +314,7 @@ def get_train_transform():
         A.HorizontalFlip(p=0.4),
         A.VerticalFlip(p=0.4),
         A.Rotate(limit=(-15, 15), p=0.5, border_mode=cv2.BORDER_CONSTANT),
-        A.GaussNoise(std_range=(0.447, 0.447), mean_range=(0.0, 0.0), per_channel=True, p=0.3),
+        A.GaussNoise(std_range=(0.44721359549995793928183473374626, 0.44721359549995793928183473374626), mean_range=(0.0, 0.0), per_channel=True, p=0.3), # Gaussian noise dengan variansi 0.2
         A.Normalize(mean=(0.0, 0.0, 0.0), std=(1.0, 1.0, 1.0), max_pixel_value=255.0),
         ToTensorV2(),
     ])

@@ -21,7 +21,7 @@ tar -xzf dataset142.tar.gz
 pip install -r requirements.txt
 ```
 ```bash
-buka wandb untuk ambil api key
+wandb login
 
 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
 
@@ -97,40 +97,40 @@ rclone ls gdrive1:Kevin/runpod
 
 1. maskrcnn_resnet50_fpn + Amodal + SGD
 ```bash
-python train.py --data_dir dataset142 --backbone resnet50_fpn_v1 --model_type amodal --optimizer sgd --lr 1e-2 --batch_size 2
+python train.py --data_dir dataset142 --backbone resnet50_fpn_v1 --model_type amodal --optimizer sgd --lr 1e-2 --batch_size 1 --no_amp --num_workers 14 --COSINE_ETA_MIN 1e-4
 ```
 
 2. maskrcnn_resnet50_fpn + Amodal + Adam
 ```bash
-python train.py --data_dir dataset142 --backbone resnet50_fpn_v1 --model_type amodal --optimizer adam --lr 1e-4 --batch_size 2
+python train.py --data_dir dataset142 --backbone resnet50_fpn_v1 --model_type amodal --optimizer adam --lr 1e-4 --batch_size 1 --weight_decay 1e-5 --no_amp --num_workers 14 
 ```
 
 3. maskrcnn_resnet50_fpn + Standard + SGD
 ```bash
-python train.py --data_dir dataset142 --backbone resnet50_fpn_v1 --model_type standard --optimizer sgd --lr 1e-2 --batch_size 2
+python train.py --data_dir dataset142 --backbone resnet50_fpn_v1 --model_type standard --optimizer sgd --lr 1e-2 --batch_size 1 --no_amp --num_workers 14 --COSINE_ETA_MIN 1e-4
 ```
 
 4. maskrcnn_resnet50_fpn + Standard + Adam
 ```bash
-python train.py --data_dir dataset142 --backbone resnet50_fpn_v1 --model_type standard  --optimizer adam --lr 1e-4 --batch_size 2
+python train.py --data_dir dataset142 --backbone resnet50_fpn_v1 --model_type standard --optimizer adam --lr 1e-4 --batch_size 1 --weight_decay 1e-5 --no_amp --num_workers 14 
 ```
 
 5. maskrcnn_resnet50_fpn_v2 + Amodal + SGD
 ```bash
-python train.py --data_dir dataset142 --backbone resnet50_fpn_v2 --model_type amodal --optimizer sgd --lr 1e-2 --batch_size 2
+python train.py --data_dir dataset142 --backbone resnet50_fpn_v2 --model_type amodal --optimizer sgd --lr 1e-2 --batch_size 1 --no_amp --num_workers 14 --COSINE_ETA_MIN 1e-4
 ```
 
 6. maskrcnn_resnet50_fpn_v2 + Amodal + Adam
 ```bash
-python train.py --data_dir dataset142 --backbone resnet50_fpn_v2 --model_type amodal --optimizer adam --lr 1e-4 --batch_size 2
+python train.py --data_dir dataset142 --backbone resnet50_fpn_v2 --model_type amodal --optimizer adam --lr 1e-4 --batch_size 1 --weight_decay 1e-5 --no_amp --num_workers 14 
 ```
 
 7. maskrcnn_resnet50_fpn_v2 + Standard + SGD
 ```bash
-python train.py --data_dir dataset142 --backbone resnet50_fpn_v2 --model_type standard  --optimizer sgd --lr 1e-2 --batch_size 2
+python train.py --data_dir dataset142 --backbone resnet50_fpn_v2 --model_type standard  --optimizer sgd --lr 1e-2 --batch_size 1 --no_amp --num_workers 14 --COSINE_ETA_MIN 1e-4
 ```
 
 8. maskrcnn_resnet50_fpn_v2 + Standard + Adam
 ```bash
-python train.py --data_dir dataset142 --backbone resnet50_fpn_v2 --model_type standard --optimizer adam --lr 1e-4 --batch_size 2
+python train.py --data_dir dataset142 --backbone resnet50_fpn_v2 --model_type standard --optimizer adam --lr 1e-4 --batch_size 1 --weight_decay 1e-5 --no_amp --num_workers 14 
 ```

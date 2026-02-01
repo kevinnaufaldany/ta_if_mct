@@ -26,7 +26,6 @@ from utils import check_set_gpu
 class DetectionError:
     CORRECT = 'correct'
     WRONG_LOCATION = 'wrong_location'
-    WRONG_LABEL = 'wrong_label'
     FALSE_POSITIVE = 'false_positive'
     FALSE_NEGATIVE = 'false_negative'
     LOW_CONFIDENCE = 'low_confidence'
@@ -194,9 +193,8 @@ def Test_matching(predictions, gt_objects, image_shape,
     Test matching antara predictions dan ground truth.
     
     Mengidentifikasi:
-    - Correct detections (lokasi benar, label benar, confidence tinggi)
-    - Wrong location (IoU rendah tapi label benar)
-    - Wrong label (IoU tinggi tapi label salah)
+    - Correct detections (lokasi benar, confidence tinggi)
+    - Wrong location (IoU rendah)
     - False positives (tidak ada GT yang match)
     - False negatives (GT tidak terdeteksi)
     - Low confidence (benar tapi confidence < threshold)

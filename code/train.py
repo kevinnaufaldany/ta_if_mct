@@ -48,7 +48,7 @@ def visualize_predictions(model, dataset, device, save_dir, fold_idx, num_sample
             img_input = img.unsqueeze(0).to(device)
             prediction = model(img_input)[0]
             
-            # Convert image to numpy for visualization
+            # Convert image to numpy for visualization tensor to RGB
             img_np = img.permute(1, 2, 0).cpu().numpy()
             img_np = (img_np * 255).astype(np.uint8).copy()
             
@@ -286,8 +286,8 @@ def train_one_epoch(model, dataloader, optimizer, device, epoch, scheduler=None,
                 optimizer.step()
             
             # Update scheduler per-batch AFTER optimizer.step() (only after warmup)
-            if scheduler is not None and global_step >= warmup_iters:
-                scheduler.step()
+            # if scheduler is not None and global_step >= warmup_iters:
+            #     scheduler.step()
             
             global_step += 1
             
@@ -306,7 +306,7 @@ def train_one_epoch(model, dataloader, optimizer, device, epoch, scheduler=None,
             
             # Delete tensors to free memory
             del images, targets, loss_dict, losses
-            if batch_idx % 2 == 0:  # More aggressive cache clearing
+            if batch_idx % 10 == 0:  # More aggressive cache clearing
                 torch.cuda.empty_cache()
                 
         except RuntimeError as e:
@@ -319,7 +319,6 @@ def train_one_epoch(model, dataloader, optimizer, device, epoch, scheduler=None,
     # Return amodal loss if available (will be None for standard models)
     amodal_loss = amodal_loss_meter.avg if amodal_loss_meter.count > 0 else None
     return loss_meter.avg, global_step, amodal_loss
-
 
 @torch.no_grad()
 def validate(model, dataloader, device, use_amp=False, model_type='standard'):
@@ -367,7 +366,7 @@ def validate(model, dataloader, device, use_amp=False, model_type='standard'):
         
         # Clean up memory
         del images, targets, loss_dict, losses, predictions
-        if batch_idx % 2 == 0:
+        if batch_idx % 10 == 0:
             torch.cuda.empty_cache()
     
     # Calculate COCO 2025 Standard Metrics
@@ -397,17 +396,9 @@ def validate(model, dataloader, device, use_amp=False, model_type='standard'):
     
     return results
 
-
-def train_kfold_optimized(config):
+def train_kfold(config):
     """
-    K-Fold Cross-Validation Training - OPTIMIZED VERSION.
-    
-    Optimizations:
-    - Save only best APm model per fold (best_apm_epoch{epoch}.pth)
-    - Simplified TensorBoard (optional, lightweight)
-    - history_train.json per fold with all metrics
-    - Visualizations only at end of fold
-    - Clean folder structure: output/fold{N}/
+    K-Fold Cross-Validation Training
     """
     print("="*80)
     print("K-FOLD CROSS-VALIDATION TRAINING")
@@ -424,7 +415,7 @@ def train_kfold_optimized(config):
     if config['optimizer'] == 'sgd':
         print(f"  Momentum: {config.get('momentum', 0.9)}")
     print(f"Learning Rate: {config['lr']}")
-    print(f"Scheduler: CosineAnnealingWarmRestarts (T_0={config.get('COSINE_T0', 20)})")
+    print(f"Scheduler: CosineAnnealingWarmRestarts (T_0={config.get('COSINE_T0', 10)})")
     print(f"Mixed Precision (AMP): {'Enabled' if config.get('use_amp', False) else 'Disabled'}")
     
     early_stop_patience = config.get('early_stopping_patience', 7)
@@ -467,7 +458,6 @@ def train_kfold_optimized(config):
         fold_start_time = time.time()
         
         # Create model configuration directory name
-        # Format: backbone_modeltype_optimizer_lr (e.g., resnet50_fpn_v1_amodal_sgd_0.01)
         lr_str = f"{config['lr']:.0e}" if config['lr'] < 0.01 else f"{config['lr']}"
         model_config_dir = f"{config['backbone']}_{config['model_type']}_{config['optimizer']}_lr{lr_str}"
         
@@ -480,10 +470,10 @@ def train_kfold_optimized(config):
         os.makedirs(config_checkpoint_dir, exist_ok=True)
 
         wandb.init(
-            project="cassiterite-segmentation-ta2",
+            project="cassiterite-segmentation-ta-final-2026",
             name=f"Fold-{fold_num}_{config['backbone']}_{config['model_type']}_{config['optimizer']}_lr{lr_str}",
-            group=f"{config['backbone']}_{config['optimizer']}_lr{lr_str}",
-            job_type=f"{config['model_type']}",
+            group=f"{config['backbone']}_{config['model_type']}_{config['optimizer']}_lr{lr_str}",
+            job_type=f"{config['backbone']}_{config['model_type']}",
             config=config,
             reinit=True
         )
@@ -527,12 +517,6 @@ def train_kfold_optimized(config):
                 momentum=config.get('momentum', 0.9),
                 weight_decay=config['weight_decay']
             )
-        elif config['optimizer'] == 'adamw':
-            optimizer = optim.AdamW(
-                params, 
-                lr=config['lr'], 
-                weight_decay=config['weight_decay']
-            )
         elif config['optimizer'] == 'adam':
             optimizer = optim.Adam(
                 params, 
@@ -540,12 +524,12 @@ def train_kfold_optimized(config):
                 weight_decay=config['weight_decay']
             )
         else:
-            raise ValueError(f"Unknown optimizer: {config['optimizer']}. Use 'sgd', 'adam', or 'adamw'")
+            raise ValueError(f"Unknown optimizer: {config['optimizer']}. Use 'sgd' or 'adam''")
         
         # Main scheduler: CosineAnnealingWarmRestarts
         scheduler = CosineAnnealingWarmRestarts(
             optimizer, 
-            T_0=config.get('COSINE_T0', 20),
+            T_0=config.get('COSINE_T0', 10),
             T_mult=config.get('COSINE_T_MULT', 1),
             eta_min=config.get('COSINE_ETA_MIN', 1e-6)
         )
@@ -560,7 +544,7 @@ def train_kfold_optimized(config):
         
         # Early stopping
         early_stopping = EarlyStopping(
-            patience=config.get('early_stopping_patience', 7),
+            patience=config.get('early_stopping_patience', 3),
             min_delta=0.0001,
             mode='max',
             verbose=True
@@ -597,7 +581,7 @@ def train_kfold_optimized(config):
             print(f"\n--- Epoch {epoch}/{config['epochs']} ---")
             start_time = time.time()
 
-            # Train (scheduler steps per-batch inside train_one_epoch)
+            # Train
             train_loss, global_step, amodal_loss = train_one_epoch(
                 model, train_loader, optimizer, device, epoch,
                 scheduler=scheduler,
@@ -612,6 +596,7 @@ def train_kfold_optimized(config):
             
             # Validate with COCO 2025 metrics
             val_results = validate(model, val_loader, device, use_amp=use_amp, model_type=config['model_type'])
+            scheduler.step()
             epoch_time = time.time() - start_time
             
 
@@ -786,7 +771,7 @@ def main():
     parser = argparse.ArgumentParser(description='Train Amodal Instance Segmentation Model (Optimized)')
     
     # Data
-    parser.add_argument('--data_dir', type=str, default='dataset3',
+    parser.add_argument('--data_dir', type=str, default='dataset142',
                        help='Path to dataset folder')
     
     # Training mode (K-Fold only)
@@ -808,9 +793,9 @@ def main():
     # Training
     parser.add_argument('--epochs', type=int, default=50,
                        help='Number of epochs')
-    parser.add_argument('--batch_size', type=int, default=2,
+    parser.add_argument('--batch_size', type=int, default=1,
                        help='Batch size')
-    parser.add_argument('--optimizer', type=str, default='sgd', choices=['sgd', 'adam', 'adamw'],
+    parser.add_argument('--optimizer', type=str, default='sgd', choices=['sgd', 'adam'],
                        help='Optimizer type')
     parser.add_argument('--momentum', type=float, default=0.9,
                        help='Momentum for SGD optimizer')
@@ -818,13 +803,13 @@ def main():
                        help='Learning rate')
     parser.add_argument('--weight_decay', type=float, default=0.0001,
                        help='Weight decay')
-    parser.add_argument('--COSINE_T0', type=int, default=20,
+    parser.add_argument('--COSINE_T0', type=int, default=10,
                        help='T_0 for CosineAnnealingWarmRestarts')
     parser.add_argument('--COSINE_T_MULT', type=int, default=1,
                        help='T_mult for CosineAnnealingWarmRestarts')
     parser.add_argument('--COSINE_ETA_MIN', type=float, default=1e-6,
                        help='Minimum learning rate for CosineAnnealingWarmRestarts')
-    parser.add_argument('--num_workers', type=int, default=0,
+    parser.add_argument('--num_workers', type=int, default=14,
                        help='Number of data loading workers')
     parser.add_argument('--seed', type=int, default=42,
                        help='Random seed')
@@ -832,7 +817,7 @@ def main():
                        help='Use Automatic Mixed Precision (AMP)')
     parser.add_argument('--no_amp', dest='use_amp', action='store_false',
                        help='Disable AMP')
-    parser.add_argument('--early_stopping_patience', type=int, default=7,
+    parser.add_argument('--early_stopping_patience', type=int, default=3,
                        help='Early stopping patience (0 to disable)')
     
     # Output
@@ -855,7 +840,7 @@ def main():
     np.random.seed(config['seed'])
     
     # Train K-Fold Cross-Validation
-    train_kfold_optimized(config)
+    train_kfold(config)
 
 
 if __name__ == '__main__':

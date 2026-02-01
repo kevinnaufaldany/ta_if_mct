@@ -11,7 +11,7 @@ python test_evaluation_tiled.py --checkpoint "resnet50_fpn_v2_amodal_adam_lr1e-0
 
 2. maskrcnn_resnet50_fpn + Amodal + Adam
 ```bash
-python test_evaluation_tiled.py --checkpoint "resnet50_fpn_v2_amodal_adam_lr1e-04\fold1\best_ap_epoch15.pth" --model_type amodal --backbone resnet50_fpn_v2 --testset_dir testset --output_dir test_evaluation/v1_standard_adam
+python test_evaluation_tiled.py --checkpoint "checkpoints\resnet50_fpn_v2_amodal_sgd_lr0.01\fold2\best_ap_epoch7.pth" --model_type amodal --backbone resnet50_fpn_v2 --testset_dir testset --output_dir test_evaluation/v1_standard_adam
 ```
 
 3. maskrcnn_resnet50_fpn + Standard + SGD

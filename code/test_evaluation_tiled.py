@@ -26,7 +26,6 @@ from utils import check_set_gpu
 class DetectionError:
     CORRECT = 'correct'
     WRONG_LOCATION = 'wrong_location'
-    WRONG_LABEL = 'wrong_label'
     FALSE_POSITIVE = 'false_positive'
     FALSE_NEGATIVE = 'false_negative'
     LOW_CONFIDENCE = 'low_confidence'
@@ -36,7 +35,6 @@ class DetectionError:
 ERROR_COLORS = {
     DetectionError.CORRECT: (0, 255, 0),           # GREEN - Benar
     DetectionError.WRONG_LOCATION: (255, 165, 0),  # ORANGE - Lokasi salah
-    DetectionError.WRONG_LABEL: (255, 0, 255),     # MAGENTA - Label salah
     DetectionError.FALSE_POSITIVE: (255, 0, 0),    # RED - Over-prediction
     DetectionError.FALSE_NEGATIVE: (0, 0, 255),    # BLUE - Under-prediction
     DetectionError.LOW_CONFIDENCE: (255, 255, 0),  # YELLOW - Confidence rendah
@@ -471,9 +469,8 @@ def Test_matching(predictions, gt_objects, image_shape,
     Test matching antara predictions dan ground truth.
     
     Mengidentifikasi:
-    - Correct detections (lokasi benar, label benar, confidence tinggi)
-    - Wrong location (IoU rendah tapi label benar)
-    - Wrong label (IoU tinggi tapi label salah)
+    - Correct detections (lokasi benar, confidence tinggi)
+    - Wrong location (IoU rendah)
     - False positives (tidak ada GT yang match)
     - False negatives (GT tidak terdeteksi)
     - Low confidence (benar tapi confidence < threshold)
@@ -602,7 +599,6 @@ def calculate_metrics(matching_result):
     correct = error_counts[DetectionError.CORRECT]
     low_conf = error_counts[DetectionError.LOW_CONFIDENCE]
     wrong_loc = error_counts[DetectionError.WRONG_LOCATION]
-    wrong_label = error_counts[DetectionError.WRONG_LABEL]
     fp = error_counts[DetectionError.FALSE_POSITIVE]
     fn = error_counts[DetectionError.FALSE_NEGATIVE]
     
@@ -652,7 +648,6 @@ def calculate_metrics(matching_result):
         'correct': correct,
         'low_confidence': low_conf,
         'wrong_location': wrong_loc,
-        'wrong_label': wrong_label,
         'false_positive': fp,
         'false_negative': fn,
         'true_positives': tp,
