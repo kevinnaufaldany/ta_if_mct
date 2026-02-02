@@ -62,9 +62,7 @@ def get_maskrcnn_resnet50_fpn_v2(num_classes=2, trainable_layers=3):
     
     return model
 
-# =========================================================
 #   1. Amodal Mask Head (NEW BRANCH)
-# =========================================================
 class AmodalMaskHead(nn.Module):
     """
     Amodal mask head:
@@ -97,9 +95,7 @@ class AmodalMaskHead(nn.Module):
         x = self.relu(x)
         return x
 
-# =========================================================
 #   2. Amodal Mask Predictor
-# =========================================================
 class AmodalMaskPredictor(nn.Module):
     """
     Predictor terakhir untuk menghasilkan amodal mask logits
@@ -112,9 +108,7 @@ class AmodalMaskPredictor(nn.Module):
         return self.conv_predictor(x)
 
 
-# =========================================================
 #   3. Get Standard Mask R-CNN (ResNet50-FPN)
-# =========================================================
 def get_maskrcnn(backbone="v2", num_classes=2, trainable_layers=3):
     if backbone == "v1":
         model = maskrcnn_resnet50_fpn(
@@ -142,9 +136,7 @@ def get_maskrcnn(backbone="v2", num_classes=2, trainable_layers=3):
     return model
 
 
-# =========================================================
 #   4. FULL AMODAL Mask R-CNN MODEL
-# =========================================================
 class AmodalMaskRCNN(nn.Module):
     """
     Amodal Mask R-CNN: Adds amodal mask prediction branch to standard Mask R-CNN.
@@ -379,9 +371,7 @@ class AmodalMaskRCNN(nn.Module):
             return detections
 
 
-# =========================================================
 #   5. Factory Function
-# =========================================================
 def get_amodal_model(num_classes=2, backbone="v2", trainable_layers=3):
     return AmodalMaskRCNN(
         num_classes=num_classes,
